@@ -1,0 +1,110 @@
+diff --git a/packages/client/ui-settings-plugins/src/client/index.ts b/packages/client/ui-settings-plugins/src/client/index.ts
+index 40ec376432..ff902e9785 100644
+--- a/packages/client/ui-settings-plugins/src/client/index.ts
++++ b/packages/client/ui-settings-plugins/src/client/index.ts
+@@ -27,6 +27,7 @@ import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
+ import type { PluginsSettingsSectionInjected, PluginsSettingsTabEntry } from './PluginsSettingsSection.tsx'
+ import { SubagentModelSelectionCard } from './SubagentModelSelectionCard.tsx'
+ import { WebSearchCard } from './WebSearchCard.tsx'
++import { YandexSearchCard } from './YandexSearchCard.tsx'
+ import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
+ import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
+ import { ConfigurablePluginsTabController } from './tab-store.ts'
+@@ -34,6 +35,7 @@ import {
+   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
+ } from './subagent-model-selection-card-controller.ts'
+ import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
++import { YANDEX_SEARCH_NS, YandexSearchCardController } from './yandex-search-card-controller.ts'
+ import { en, zh } from './locales.ts'
+ 
+ export type { PluginsSettingsSectionInjected, PluginsSettingsSectionProps } from './PluginsSettingsSection.tsx'
+@@ -69,6 +71,8 @@ export function apply(ctx: ClientContext): void {
+   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
+   const webSearch = new WebSearchCardController(
+     ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx.remote.credentials)
++  const yandexSearch = new YandexSearchCardController(
++    ctx.settingsScope.bind({ namespace: YANDEX_SEARCH_NS }), ctx.remote.credentials)
+   const subagentModelSelection = new SubagentModelSelectionCardController(
+     ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
+     ctx.remote.session,
+@@ -78,7 +82,10 @@ export function apply(ctx: ClientContext): void {
+   // scope publishes nothing when one is written. This is the only signal that
+   // a key written on another surface reached the Host.
+   ctx.effect(
+-    () => ctx.remote.$on('credentials/reference-updated', (ref) => { webSearch.refreshCredential(ref) }),
++    () => ctx.remote.$on('credentials/reference-updated', (ref) => {
++      webSearch.refreshCredential(ref)
++      yandexSearch.refreshCredential(ref)
++    }),
+     'ui-settings-plugins: credential invalidations',
+   )
+   ctx.effect(
+@@ -189,5 +196,11 @@ export function apply(ctx: ClientContext): void {
+       locale: NS,
+       inject: () => webSearch.inject(),
+     }, WebSearchCard)
++    yield ctx.slots.register({
++      name: 'settings.plugin.item',
++      key: YANDEX_SEARCH_NS,
++      locale: NS,
++      inject: () => yandexSearch.inject(),
++    }, YandexSearchCard)
+   })
+ }
+diff --git a/packages/client/ui-settings-plugins/src/client/locales.ts b/packages/client/ui-settings-plugins/src/client/locales.ts
+index b68ab80beb..05e31ac43a 100644
+--- a/packages/client/ui-settings-plugins/src/client/locales.ts
++++ b/packages/client/ui-settings-plugins/src/client/locales.ts
+@@ -11,6 +11,10 @@ export type PluginsSettingsLocaleKey =
+   | 'webSearchTitle' | 'webSearchDescription'
+   | 'webSearchApiKey' | 'webSearchApiKeyHint' | 'webSearchApiKeySet' | 'webSearchApiKeyUnset'
+   | 'webSearchBaseUrl' | 'webSearchBaseUrlHint' | 'webSearchMaxUses' | 'webSearchMaxUsesHint'
++  | 'yandexTitle' | 'yandexDescription'
++  | 'yandexApiKey' | 'yandexApiKeyHint' | 'yandexApiKeySet' | 'yandexApiKeyUnset'
++  | 'yandexFolderId' | 'yandexFolderIdHint' | 'yandexMode' | 'yandexModeHint'
++  | 'yandexRegion' | 'yandexRegionHint' | 'yandexMaxPassages' | 'yandexMaxPassagesHint'
+   | 'subagentModelSelectionTitle' | 'subagentModelSelectionDescription'
+   | 'subagentModelSelectionToggle' | 'subagentModelSelectionChoose' | 'subagentModelSelectionAllowed'
+   | 'subagentModelSelectionLoading' | 'subagentModelSelectionLoadFailed' | 'subagentModelSelectionRetry'
+@@ -57,6 +61,20 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
+   webSearchBaseUrlHint: 'Leave blank to use the provider default.',
+   webSearchMaxUses: 'Max searches per request',
+   webSearchMaxUsesHint: 'How many times one request may search before it must answer.',
++  yandexTitle: 'Yandex search',
++  yandexDescription: 'The Yandex Search API provider.',
++  yandexApiKey: 'API key',
++  yandexApiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
++  yandexApiKeySet: 'A key is configured.',
++  yandexApiKeyUnset: 'No key is configured; search is unavailable until one is.',
++  yandexFolderId: 'Folder id',
++  yandexFolderIdHint: 'Yandex Cloud folder the key may search in.',
++  yandexMode: 'Mode',
++  yandexModeHint: 'deferred (cheap, results in minutes) or sync (fast, pricier).',
++  yandexRegion: 'Region',
++  yandexRegionHint: 'Ranking region id; 225 = all Russia.',
++  yandexMaxPassages: 'Passages per result',
++  yandexMaxPassagesHint: 'Snippet sentences per document, 1-5.',
+   subagentModelSelectionTitle: 'Subagent',
+   subagentModelSelectionDescription: 'Control which models agents may choose for subagents.',
+   subagentModelSelectionToggle: 'Allow agents to choose models for subagents',
+@@ -113,6 +131,20 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
+   webSearchBaseUrlHint: '留空则使用提供方默认地址。',
+   webSearchMaxUses: '单次请求最多搜索次数',
+   webSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
++  yandexTitle: 'Yandex 搜索',
++  yandexDescription: 'Yandex Search API 搜索提供方。',
++  yandexApiKey: 'API Key',
++  yandexApiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
++  yandexApiKeySet: '已配置密钥。',
++  yandexApiKeyUnset: '未配置密钥；配置之前搜索不可用。',
++  yandexFolderId: '目录 ID',
++  yandexFolderIdHint: '密钥所属的 Yandex Cloud 目录。',
++  yandexMode: '模式',
++  yandexModeHint: 'deferred（便宜，分钟级返回）或 sync（快，更贵）。',
++  yandexRegion: '地区',
++  yandexRegionHint: '排序地区 ID；225 = 全俄罗斯。',
++  yandexMaxPassages: '每条结果的摘录数',
++  yandexMaxPassagesHint: '每份文档的摘录句数，1-5。',
+   subagentModelSelectionTitle: 'Subagent',
+   subagentModelSelectionDescription: '控制 Agent 为 Subagent 选择模型的权限。',
+   subagentModelSelectionToggle: '允许 Agent 为 Subagent 选择模型',

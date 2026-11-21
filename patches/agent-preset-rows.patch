@@ -1,0 +1,76 @@
+diff --git a/packages/preset/agent-presets/presets/cordis/agent.cordis.yml b/packages/preset/agent-presets/presets/cordis/agent.cordis.yml
+index 96cd7e6b09..31dbfa88aa 100644
+--- a/packages/preset/agent-presets/presets/cordis/agent.cordis.yml
++++ b/packages/preset/agent-presets/presets/cordis/agent.cordis.yml
+@@ -241,9 +241,12 @@
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: true
++    fetch: false
+     searchTimeoutMs: 60000
+ 
++- id: tool-web-fetch-plus
++  name: '@deepseek-ai/dsh-tool-web-fetch-plus'
++
+ # ── self-modification ───────────────────────────────────────────────────────
+ 
+ # Read the live runtime, mount a temporary plugin, unmount it. The toolset is a
+diff --git a/packages/preset/agent-presets/presets/ptc/agent.cordis.yml b/packages/preset/agent-presets/presets/ptc/agent.cordis.yml
+index 3c8406f907..c6e3680255 100644
+--- a/packages/preset/agent-presets/presets/ptc/agent.cordis.yml
++++ b/packages/preset/agent-presets/presets/ptc/agent.cordis.yml
+@@ -254,9 +254,12 @@
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: true
++    fetch: false
+     searchTimeoutMs: 60000
+ 
++- id: tool-web-fetch-plus
++  name: '@deepseek-ai/dsh-tool-web-fetch-plus'
++
+ # ── presentation ────────────────────────────────────────────────────────────
+ 
+ # PTC mode for this agent alone. The row waits for the host's `codeRuntime`
+diff --git a/packages/preset/agent-presets/presets/standard/agent.cordis.yml b/packages/preset/agent-presets/presets/standard/agent.cordis.yml
+index 3916d6bf3e..5c4066f6c7 100644
+--- a/packages/preset/agent-presets/presets/standard/agent.cordis.yml
++++ b/packages/preset/agent-presets/presets/standard/agent.cordis.yml
+@@ -249,9 +249,15 @@
+     allowParallelInProgress: true
+ 
+ # The `web` service and its search provider stay in the host composition; only
+-# the model-facing tool is per-session.
++# the model-facing tools are per-session. web_search comes from tool-web
++# (fetch disabled); web_fetch comes from tool-web-fetch-plus, which renders
++# HTML with mode support — text_compact by default, text, and raw (markdown)
++# as the extended opt-in.
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: true
++    fetch: false
+     searchTimeoutMs: 60000
++
++- id: tool-web-fetch-plus
++  name: '@deepseek-ai/dsh-tool-web-fetch-plus'
+diff --git a/packages/preset/agent-presets/tests/shipped-root.spec.ts b/packages/preset/agent-presets/tests/shipped-root.spec.ts
+index d45f3a1373..85a567003c 100644
+--- a/packages/preset/agent-presets/tests/shipped-root.spec.ts
++++ b/packages/preset/agent-presets/tests/shipped-root.spec.ts
+@@ -106,7 +106,12 @@ describe('the shipped preset root', () => {
+         || typeof toolWeb.config !== 'object' || toolWeb.config === null || !('fetch' in toolWeb.config)) {
+         throw new TypeError(`${id} preset must configure tool-web.fetch`)
+       }
+-      expect(toolWeb.config.fetch, id).toBe(true)
++      // web_search comes from tool-web; web_fetch comes from the mode-aware
++      // tool-web-fetch-plus (text_compact default, text, raw) beside it.
++      expect(toolWeb.config.fetch, id).toBe(false)
++      const fetchPlus: unknown = entries.find((entry: unknown) =>
++        typeof entry === 'object' && entry !== null && 'id' in entry && entry.id === 'tool-web-fetch-plus')
++      expect(fetchPlus, id).toBeDefined()
+     }
+   })
+ })
